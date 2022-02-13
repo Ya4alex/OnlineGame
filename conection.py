@@ -5,7 +5,7 @@ from threading import *
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 HOST = socket.gethostbyname(socket.gethostname())
-PORT = 5559
+PORT = 5560
 print(f"host: {HOST} port: {PORT}")
 server_socket.bind((HOST, PORT))
 
@@ -19,16 +19,17 @@ class Client:
 
     def collect_data_break(self):
         self.sock.setblocking(0)
-        self.data = deque([], 100)
         try:
-            _data = json.loads(self.sock.recv(512).decode("utf-8"))
-            print("data:", _data)
-            self.data.append(_data)
-        except socket.error as e:  # данных нет
-            print("skipping", self.id, e)
+            _data = self.sock.recv(1024).decode("utf-8")
+            self.data.append(json.loads(_data[_data.rfind('#')+1:]))
+        except socket.error:  # данных нет
+            print("passed")
 
     def send_data(self, stk):
-        self.sock.sendall(json.dumps(stk).encode("utf-8"))
+        try:
+            self.sock.sendall(json.dumps(stk).encode("utf-8"))
+        except:
+            pass
 
     def connect(self, id, count):
         self.send_data({"type": "hello", "your_id": id, "pl_count": count})

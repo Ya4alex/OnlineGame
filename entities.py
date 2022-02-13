@@ -13,6 +13,12 @@ BULLET_IMG.set_colorkey((0, 0, 0))
 int_0 = lambda x: x if x > 0 else 0
 
 
+def create_tank_data(id, data):
+    t = Tank(id)
+    t.update(data)
+    return t
+
+
 class Tank(pygame.sprite.Sprite):
     class Game:
         healf = 100
@@ -35,14 +41,18 @@ class Tank(pygame.sprite.Sprite):
             self.shoot_d = int_0(self.shoot_d - 1)
 
     def __init__(self, *args):
+        self.obj = "Player"
+        self.id = id
+
         super().__init__()
         self.game = self.Game(*args)
+        self.id = self.game.id
         _image = pygame.transform.scale(pygame.image.load('img/car.png').convert(), (64, 64))
         _image.set_colorkey((0, 0, 0))
         self.image = self.orig_image = _image
         self.rect = self.image.get_rect()
-        self.rect.centerx = 55
-        self.rect.centery = 55
+        self.rect.centerx = 200
+        self.rect.centery = 200
 
         _image = pygame.transform.scale(pygame.image.load('img/tower.png').convert(), (33, 66))
         _image.set_colorkey((0, 0, 0))
@@ -64,7 +74,7 @@ class Tank(pygame.sprite.Sprite):
 
         self.animation = self.Animation()
 
-    def update(self):
+    def self_update(self):
         keystate = pygame.key.get_pressed()
 
         self.speedx = int(keystate[pygame.K_d]) * TANK_SPEED + int(keystate[pygame.K_a]) * -TANK_SPEED
@@ -87,13 +97,17 @@ class Tank(pygame.sprite.Sprite):
             self.tower_rect.centerx - math.cos(math.radians(-self.tower_angle)) * self.animation.shoot_d,
             self.tower_rect.centery - math.sin(math.radians(-self.tower_angle)) * self.animation.shoot_d
         )
-
         self.animation.update()
 
-    def rotate(self, deg=False):
-        if deg is not False:
-            pass
-        if self.speedy != 0 or self.speedx != 0:
+    def update(self, data):
+        self.x = self.rect.centerx = data["pos"][0]
+        self.y = self.rect.centery = data["pos"][1]
+        self.angle = data["rot"]
+        self.tower_angle = data["t_rot"]
+        self.rotate(True)
+
+    def rotate(self, r=False):
+        if self.speedy != 0 or self.speedx != 0 or r:
             self.image = pygame.transform.rotate(self.orig_image, self.angle - 90)
 
         self.tower_image = pygame.transform.rotate(self.orig_tower_image, self.tower_angle - 90)
@@ -132,37 +146,65 @@ class Tank(pygame.sprite.Sprite):
                 self.rect.centerx + r * cos,
                 self.rect.centery + r * sin, sx, sy, self.tower_angle, self)
 
+    def get_info(self):
+        return {
+            "self": {
+                "pos": (self.x, self.y),
+                "rot": self.angle,
+                "t_rot": self.tower_angle,
+            },
+            "act": "",
+            "obj": {
+                "cur": pygame.mouse.get_pos(),
+                "par": {}
+            },
+        }
+
+
+def create_wall_data(id, data):
+    return Wall(*data["pos"], *data["wh"], id)
+
 
 class Wall(pygame.sprite.Sprite):
-    def __init__(self, x, y, w, h, move=(0, 0)):
+    def __init__(self, x, y, w, h, id=0):
         super().__init__()
+        self.obj = "Wall"
+        self.id = id
         self.image = pygame.Surface((w, h))
         self.image.fill(pygame.Color('sienna1'))
         self.rect = self.image.get_rect(topleft=(x, y))
-        self.move = move
 
-    def update(self):
-        self.rect.x += self.move[0]
-        self.rect.y += self.move[1]
+    def update(self, data):
+        self.rect.topleft = data["pos"]
+        self.rect.width, self.rect.height, = data["wh"]
+
+
+def create_bullet_data(id, data):
+    return Bullet(*data["pos"], data["rot"], 1, id)
 
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, x, y, sx, sy, rot, player):
+    def __init__(self, x, y, rot, player, id):
+        self.obj = "Bullet"
+        self.id = id
         pygame.sprite.Sprite.__init__(self)
         self.image = pygame.transform.rotate(BULLET_IMG, rot - 90)
         self.rect = self.image.get_rect()
         self.rect.centery = self.y = y
         self.rect.centerx = self.x = x
-        self.speedy = sy
-        self.speedx = sx
+        self.rot = rot
 
         self.damage = BULLET_DAMAGE
         self.player = player
 
-    def update(self):
-        self.y += self.speedy
-        self.x += self.speedx
-        self.rect.centerx = self.x
-        self.rect.centery = self.y
-        if self.rect.bottom < 0 or self.rect.top > 850 or self.rect.right < 0 or self.rect.left > 1500:
-            self.kill()  # суицид это плохо
+    def update(self, data):
+        self.rect.center = data["pos"]
+        self.rect.rot = data["pos"]
+        self.image = pygame.transform.rotate(BULLET_IMG, self.rot - 90)
+
+
+create_tool = {
+    "Bullet": create_bullet_data,
+    "Player": create_tank_data,
+    "Wall": create_wall_data
+}

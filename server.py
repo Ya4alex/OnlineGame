@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import math
-from threading import *
+from threading import Thread
 
 import pygame
 # игровые параметры
@@ -8,21 +8,21 @@ from pygame.rect import Rect
 
 import conection
 
-connections = conection.get_players(1)
+connections = conection.get_players(2)
 
 # инициализация pygame и тд.
 FPS = 60
 
 pygame.init()
 pygame.mixer.init()
-screen = pygame.display.set_mode((1500, 850))
+screen = pygame.display.set_mode((500, 500))
 infoObject = pygame.display.Info()
 WIDTH = infoObject.current_w  # эти константы стали известны только после инициализации pygame
 HEIGHT = infoObject.current_h
 
 clock = pygame.time.Clock()
 
-pygame.display.set_caption("TanKs")
+pygame.display.set_caption("Server")
 pygame.mouse.set_visible(True)
 font_name = pygame.font.match_font('arial')
 
@@ -73,10 +73,6 @@ def shoot(player, obj):
     pass
 
 
-def move(player, pos=(0, 0), rot=0, t_rot=0):
-    player.update(*pos, rot, t_rot)
-
-
 tool = {
     "shoot": shoot
 }
@@ -86,7 +82,7 @@ def analyze(player):
     if not player.connection.data:
         return
     inf = player.connection.data.pop()
-    move(player, **inf["self"])
+    player.update(*inf["self"]["pos"], inf["self"]["rot"], inf["self"]["t_rot"])
     f = tool.get(inf.get("act"))
     if f:
         f(**inf["obj"])
@@ -126,9 +122,9 @@ class Tank(pygame.sprite.Sprite):
         self.last_shot = 0
 
     def update(self, x, y, rot, t_rot):
-        if x ** 2 + y ** 2 <= TANK_SPEED ** 2 + 0.1:
-            self.rect.centerx = self.x
-            self.rect.centery = self.y
+        # if (x - self.x) ** 2 + (y - self.y) ** 2 <= TANK_SPEED ** 2 + 0.1:
+        self.rect.centerx = self.x = x
+        self.rect.centery = self.y = y
 
         self.angle = rot
         self.tower_angle = t_rot
@@ -214,8 +210,8 @@ class Wall(pygame.sprite.Sprite):
 
     def get_info(self):
         return {
-            "pos": self.rect.center,
-            "act": ""
+            "pos": self.rect.topleft,
+            "wh": (self.rect.width, self.rect.height)
         }
 
 
@@ -298,16 +294,12 @@ while running:
 
             if index == 0:
                 _tank.rect.top = _wall.rect.bottom
-                _tank.wall(0)
             elif index == 1:
                 _tank.rect.left = _wall.rect.right
-                _tank.wall(90)
             elif index == 2:
                 _tank.rect.bottom = _wall.rect.top
-                _tank.wall(180)
             elif index == 3:
                 _tank.rect.right = _wall.rect.left
-                _tank.wall(270)
 
     hits = pygame.sprite.groupcollide(player_group, bullets, False, False)
     for _tank, _bullets in hits.items():
@@ -320,10 +312,11 @@ while running:
                 else:
                     _bullet.player.game.damage[_tank.game.id] = 34
                 print("headshot")
-
     stk = {}
     for id, sp in all_sprites.items():
-        stk[id] = sp.get_info()
+        _ = sp.get_info()
+        _["obj"] = sp.obj
+        stk[id] = _
     _buf = []
     for player in player_group.sprites():
         _buf.append(Thread(target=player.connection.send_data, args=(stk,)))
